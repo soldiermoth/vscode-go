@@ -12,6 +12,7 @@ import { documentSymbols, GoOutlineImportsOptions } from './goOutline';
 import { promptForMissingTool } from './goInstallTools';
 import { getImportablePackages } from './goPackages';
 import { envPath } from './goPath';
+import { EditTypes } from './diffUtils';
 
 const missingToolMsg = 'Missing tool: ';
 
@@ -75,8 +76,17 @@ export function getTextEditForAddImport(arg: string): vscode.TextEdit[] {
 			// For some reason there was an empty import section like `import ()`
 			return [vscode.TextEdit.insert(new vscode.Position(lastImportSection.start + 1, 0), `import "${arg}"\n`)];
 		}
-		// Add import at the start of the block so that goimports/goreturns can order them correctly
-		return [vscode.TextEdit.insert(new vscode.Position(lastImportSection.start + 1, 0), '\t"' + arg + '"\n')];
+		// Add import at the start of the block & remove newlines so that goimports/goreturns can order them correctly
+		const edits = [];
+		for (let i = lastImportSection.end; i > lastImportSection.start; i--) {
+			const prevLine = vscode.window.activeTextEditor.document.lineAt(i-1);
+			const line = vscode.window.activeTextEditor.document.lineAt(i);
+			if (line.isEmptyOrWhitespace) {
+				edits.push(vscode.TextEdit.delete(new vscode.Range(prevLine.range.end, line.range.end)));
+			}
+		}
+		edits.push(vscode.TextEdit.insert(new vscode.Position(lastImportSection.start + 1, 0), '\t"' + arg + '"\n'));
+		return edits;
 	} else if (imports.length > 0) {
 		// There are some number of single line imports, which can just be collapsed into a block import.
 		const edits = [];
